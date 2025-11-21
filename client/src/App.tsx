@@ -16,6 +16,7 @@ import MyBookings from './pages/MyBookings';
 import type { User } from './types';
 import { AuthContext } from './constants';
 
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
