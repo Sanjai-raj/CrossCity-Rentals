@@ -278,7 +278,7 @@ const cars = [
   }
 ];
 
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/multicity_carshare')
+mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/carRental?retryWrites=true&w=majority')
   .then(async () => {
     console.log('Connected to MongoDB for seeding...');
     

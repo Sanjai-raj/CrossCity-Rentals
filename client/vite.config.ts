@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/carRental?retryWrites=true&w=majority',
         changeOrigin: true,
       },
     },
