@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- Improve MongoDB connection with clear logs and graceful handling ---
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/carRental?retryWrites=true&w=majority';
 
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
