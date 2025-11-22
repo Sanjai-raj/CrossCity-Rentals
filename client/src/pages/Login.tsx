@@ -1,17 +1,18 @@
-
 import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../constants';
-import { AlertCircle } from 'lucide-react';
+import { apiPost } from '../api';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from ?? '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,28 +20,17 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      const { token, user } = await apiPost('/api/auth/login', { email, password });
 
-      const data = await response.json();
+      if (token) localStorage.setItem('mcs_token', token);
 
-      if (response.ok) {
-        // Login successful
-        login(data.user);
-        // Store token separately if needed, typically handled in AuthContext
-        if (data.user.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/');
-        }
-      } else {
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
+      const userObj = { id: user.id ?? user._id, name: user.name, email: user.email, role: user.role };
+      localStorage.setItem('mcs_user', JSON.stringify(userObj));
+      login?.(userObj);
+
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -56,7 +46,6 @@ const Login: React.FC = () => {
 
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 mb-6">
-            <AlertCircle className="w-4 h-4" />
             <span>{error}</span>
           </div>
         )}
@@ -97,12 +86,8 @@ const Login: React.FC = () => {
 
         <div className="mt-6 text-center space-y-4">
           <p className="text-sm text-gray-500">
-            Don't have an account? <a href="#" className="text-blue-600 font-medium hover:underline">Sign up</a>
+            Don't have an account? <a href="/signup" className="text-blue-600 font-medium hover:underline">Sign up</a>
           </p>
-          <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
-            <p>Demo Admin: admin@example.com / password123</p>
-            <p>Demo User: john@example.com / password123</p>
-          </div>
         </div>
       </div>
     </div>
