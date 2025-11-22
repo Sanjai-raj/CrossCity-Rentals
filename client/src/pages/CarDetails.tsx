@@ -9,10 +9,14 @@ const CarDetails: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useContext(AuthContext);
-  
+
+  // Build API base URL from environment (Vite)
+  const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ?? '';
+  const API_BASE = API_BASE_RAW.replace(/\/$/, '');
+
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal & Booking State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -22,19 +26,47 @@ const CarDetails: React.FC = () => {
 
   useEffect(() => {
     const fetchCar = async () => {
+      if (!id) {
+        setError('Missing car id');
+        setLoading(false);
+        return;
+      }
+
+      const safeId = String(id).split(/[?#]/)[0];
+      const url = API_BASE ? `${API_BASE}/cars/${encodeURIComponent(safeId)}` : `/api/cars/${encodeURIComponent(safeId)}`;
+
       try {
-        const response = await fetch(`/api/cars/${id}`);
-        if (!response.ok) throw new Error('Car not found');
+        setLoading(true);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.status === 404) {
+          setError('Car not found');
+          setCar(null);
+          return;
+        }
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Failed to fetch car');
+        }
+
         const data = await response.json();
         setCar(data);
-      } catch (error) {
-        console.error(error);
+        setError('');
+      } catch (err: any) {
+        console.error('CarDetails fetch error:', err);
+        setError(err?.message || 'Failed to load car data');
+        setCar(null);
       } finally {
         setLoading(false);
       }
     };
+
     fetchCar();
-  }, [id]);
+  }, [id, API_BASE]);
 
   // Helper to get local ISO string for input
   const formatDateForInput = (date: Date) => {
@@ -59,13 +91,12 @@ const CarDetails: React.FC = () => {
     return formatDateForInput(now);
   });
 
-  // MOVED UP: useMemo must be before conditional returns
   const { durationHours, totalPrice, tax, basePrice, isValidDuration } = useMemo(() => {
     if (!car) return { durationHours: 0, totalPrice: 0, tax: 0, basePrice: 0, isValidDuration: false };
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return { durationHours: 0, totalPrice: 0, tax: 0, basePrice: 0, isValidDuration: false };
     }
@@ -78,20 +109,20 @@ const CarDetails: React.FC = () => {
     }
 
     const isDaily = hours >= 24;
-    const price = isDaily 
-      ? (hours / 24) * car.pricePerDay 
+    const price = isDaily
+      ? (hours / 24) * car.pricePerDay
       : hours * car.pricePerHour;
-    
+
     const taxAmt = price * 0.18;
-    
-    return { 
-      durationHours: hours, 
-      basePrice: price, 
-      tax: taxAmt, 
+
+    return {
+      durationHours: hours,
+      basePrice: price,
+      tax: taxAmt,
       totalPrice: price + taxAmt,
-      isValidDuration: true 
+      isValidDuration: true
     };
-  }, [startDate, endDate, car]); // Safe dependency on 'car' object
+  }, [startDate, endDate, car]);
 
   const handleBookClick = () => {
     setError('');
@@ -118,33 +149,40 @@ const CarDetails: React.FC = () => {
 
   const handleFinalizeBooking = async () => {
     if (!agreedToTerms || !car || !user) return;
-    
+
     setIsProcessing(true);
     setBookingError('');
-    
+
     try {
       const start = new Date(startDate);
       const end = new Date(endDate);
 
-      const response = await fetch('/api/bookings', {
+      const payload = {
+        // prefer _id if present
+        carId: (car as any)?._id ?? (car as any)?.id ?? '',
+        userId: (user as any)?.id ?? '',
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        totalPrice
+      };
+
+      const url = API_BASE ? `${API_BASE}/bookings` : '/api/bookings';
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          carId: car.id,
-          userId: user.id,
-          startDate: start,
-          endDate: end,
-          totalPrice
-        })
+        body: JSON.stringify(payload)
       });
-      
+
       if (response.ok) {
         setShowConfirmModal(false);
-        navigate('/my-bookings'); 
+        navigate('/my-bookings');
       } else {
-        setBookingError('Booking failed. Please try again.');
+        const text = await response.text();
+        setBookingError(text || 'Booking failed. Please try again.');
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Booking error:', err);
       setBookingError('Network error occurred.');
     } finally {
       setIsProcessing(false);
@@ -152,7 +190,7 @@ const CarDetails: React.FC = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'active': return 'bg-blue-600';
       case 'maintenance': return 'bg-amber-500';
       case 'booked': return 'bg-red-500';
@@ -165,7 +203,7 @@ const CarDetails: React.FC = () => {
   }
 
   if (!car) {
-    return <div className="text-center py-20">Car not found</div>;
+    return <div className="text-center py-20">{error || 'Car not found'}</div>;
   }
 
   const branch = BRANCHES.find(b => b.id === car.branchId);
