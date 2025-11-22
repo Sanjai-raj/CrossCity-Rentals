@@ -1,5 +1,4 @@
-
-
+// src/components/CarCard.tsx (updated)
 import type { Car } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Users, Fuel, Gauge, Star } from 'lucide-react';
@@ -11,6 +10,20 @@ interface CarCardProps {
 const CarCard = ({ car }: CarCardProps) => {
   const [searchParams] = useSearchParams();
   const searchString = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+  // Defensive id extraction: prefer Mongo-style _id, fallback to id
+  const rawId = (car as any)?._id ?? (car as any)?.id ?? '';
+  // Ensure it's a string and strip any accidental query/hash parts
+  const id = String(rawId).split(/[?#]/)[0];
+
+  // FINAL path used for linking (adjust to '/api' or different base only if your routes require it)
+  const detailsPath = `/cars/${encodeURIComponent(id)}${searchString}`;
+
+  // temporary debug - remove this console.log in production
+  // It helps confirm the final URL that will be requested
+  if (import.meta.env.MODE !== 'production') {
+  console.debug('CarCard: details link ->', detailsPath);
+}
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col h-full">
@@ -60,9 +73,11 @@ const CarCard = ({ car }: CarCardProps) => {
                <span className="text-gray-500 text-xs">/hr</span>
             </div>
           </div>
+
           <Link 
-            to={`/car/${car.id}${searchString}`}
+            to={detailsPath}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            aria-label={`View details for ${car.make} ${car.model}`}
           >
             View Details
           </Link>
