@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import {Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../constants';
 import { apiPost } from '../api';
 
@@ -86,7 +86,7 @@ const Login: React.FC = () => {
 
         <div className="mt-6 text-center space-y-4">
           <p className="text-sm text-gray-500">
-            Don't have an account? <a href="./SignUp.tsx" className="text-blue-600 font-medium hover:underline">Sign up</a>
+            Don't have an account? <Link to="/signup" className="text-blue-600 font-medium hover:underline">Sign up</Link>
           </p>
         </div>
       </div>
