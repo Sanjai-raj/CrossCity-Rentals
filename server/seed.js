@@ -1,11 +1,11 @@
-require('dotenv').config();
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Car = require('./models/Car');
 const User = require('./models/User');
 
 
-
+require('dotenv').config();
 
 const cars = [
   // ================= HATCHBACKS (Economy & Premium) =================
