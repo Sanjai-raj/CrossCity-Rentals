@@ -1,10 +1,11 @@
 // --- IMPORTS ---
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const seed = require('./seed');
 
 const User = require('./models/User');
 const Car = require('./models/Car');
@@ -21,16 +22,31 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-async function connectDB() {
+async function connectDBAndMaybeSeed() {
   try {
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
     console.log('MongoDB Connected');
+
+    // Decide whether to force reseed
+    const force = process.env.RUN_SEED_FORCE === 'true';
+    // The seedFlagKey controls the "first-run" marker
+    const seedFlagKey = process.env.SEED_FLAG_KEY || 'seeded_v1';
+
+    try {
+      console.log(`Startup seeder: calling seed({ force: ${force}, seedFlagKey: "${seedFlagKey}" })`);
+      await seed({ force, seedFlagKey });
+      console.log('Startup seeder: completed (or skipped if already seeded).');
+    } catch (err) {
+      // Log but continue server startup — seeding failure should not crash the server
+      console.error('Startup seeder: error (logged) - continuing server startup', err);
+    }
   } catch (err) {
     console.error('MongoDB Connection Error:', err);
     process.exit(1);
   }
 }
-connectDB();
+connectDBAndMaybeSeed();
+
 
 mongoose.connection.on('connected', () => console.log('Mongoose connected (event)'));
 mongoose.connection.on('error', (err) => console.error('Mongoose error:', err));
@@ -56,6 +72,7 @@ app.get('/', (req, res) => {
 
 // -------------------------
 // AUTH ROUTES
+// (unchanged from your original)
 // -------------------------
 app.post('/api/auth/register', async (req, res) => {
   try {

@@ -1,8 +1,9 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Car = require('./models/Car');
 const User = require('./models/User');
-require('dotenv').config();
+
 
 
 
@@ -278,29 +279,115 @@ const cars = [
   }
 ];
 
-mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/carRental?retryWrites=true&w=majority')
-  .then(async () => {
-    console.log('Connected to MongoDB for seeding...');
-    
-    // Clear existing data
-    await Car.deleteMany({});
-    await User.deleteMany({});
-    
-    // Seed Cars
-    await Car.insertMany(cars);
-    console.log('Cars Seeded');
+function normalizeCars(arr) {
+  return arr.map(c => ({ ...c, status: c.status || 'active' }));
+}
 
-    // Seed Users
-    const hashedPassword = await bcrypt.hash('password123', 10);
-    await User.create([
-      { name: 'Admin User', email: 'admin@example.com', password: hashedPassword, role: 'admin' },
-      { name: 'John Doe', email: 'john@example.com', password: hashedPassword, role: 'customer' }
-    ]);
-    console.log('Users Seeded');
+const AppMetaSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: mongoose.Schema.Types.Mixed },
+  updatedAt: { type: Date, default: Date.now },
+}, { collection: 'app_meta' });
 
-    process.exit();
-  })
-  .catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+let AppMeta; // will assign after connection
+
+
+async function seed({ force = false, seedFlagKey = process.env.SEED_FLAG_KEY || 'seeded_v1' } = {}) {
+  const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://carRental:12345@carrental.vbz3jkc.mongodb.net/carRental?retryWrites=true&w=majority';
+  let connectedHere = false;
+
+  try {
+    // Connect only if not already connected
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+      connectedHere = true;
+      console.log('Seed: Connected to MongoDB');
+    } else {
+      console.log('Seed: Using existing mongoose connection');
+    }
+
+    // Ensure AppMeta model is registered on this connection
+    try {
+      AppMeta = mongoose.model('AppMeta');
+    } catch (e) {
+      AppMeta = mongoose.model('AppMeta', AppMetaSchema);
+    }
+
+    // Check the flag in DB
+    const existingFlag = await AppMeta.findOne({ key: seedFlagKey }).lean();
+    // Count current documents
+    const carCount = await Car.countDocuments();
+    const userCount = await User.countDocuments();
+
+    // If flag exists and not forcing -> skip (first-run already happened)
+    if (existingFlag && !force) {
+      console.log(`Seed: skip because flag "${seedFlagKey}" exists (seededAt=${existingFlag.updatedAt}). cars=${carCount} users=${userCount}`);
+      return { skipped: true, carCount, userCount, flag: existingFlag };
+    }
+
+    // If forcing -> wipe collections before insert
+    if (force) {
+      console.log('Seed: force=true -> clearing Car and User collections...');
+      await Car.deleteMany({});
+      await User.deleteMany({});
+    }
+
+    // Insert cars only if force OR empty
+    if (force || carCount === 0) {
+      const preparedCars = normalizeCars(cars);
+      const insertedCars = await Car.insertMany(preparedCars);
+      console.log(`Seed: Inserted ${insertedCars.length} cars.`);
+    } else {
+      console.log(`Seed: Not inserting cars (carCount=${carCount}) and force=${force}`);
+    }
+
+    // Insert users only if force OR empty
+    if (force || userCount === 0) {
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      const users = [
+        { name: 'Admin User', email: 'admin@example.com', password: hashedPassword, role: 'admin' },
+        { name: 'John Doe', email: 'john@example.com', password: hashedPassword, role: 'customer' }
+      ];
+      const createdUsers = await User.insertMany(users);
+      console.log(`Seed: Inserted ${createdUsers.length} users.`);
+    } else {
+      console.log(`Seed: Not inserting users (userCount=${userCount}) and force=${force}`);
+    }
+
+    // Upsert the AppMeta flag with current timestamp
+    const now = new Date();
+    await AppMeta.updateOne(
+      { key: seedFlagKey },
+      { $set: { value: true, updatedAt: now } },
+      { upsert: true }
+    );
+    console.log(`Seed: Flag "${seedFlagKey}" set to true (updatedAt=${now.toISOString()})`);
+
+    return { ok: true, flagKey: seedFlagKey };
+  } catch (err) {
+    console.error('Seed: error', err);
+    throw err;
+  } finally {
+    if (connectedHere) {
+      await mongoose.disconnect();
+      console.log('Seed: disconnected (seed finished)');
+    }
+  }
+}
+
+// Allow manual run: `node seed.js`
+// Use env var RUN_SEED_FORCE=true to force destructive reseed when running manually
+if (require.main === module) {
+  const force = process.env.RUN_SEED_FORCE === 'true';
+  seed({ force })
+    .then(r => {
+      console.log('Seed finished:', r);
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = seed;
