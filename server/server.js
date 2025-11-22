@@ -148,17 +148,30 @@ app.get('/api/cars', async (req, res) => {
 
 // CAR BY ID
 app.get('/api/cars/:id', async (req, res) => {
-  try {
-    const car = await Car.findById(req.params.id);
-    if (!car) return res.status(404).json({ error: 'Car not found' });
+  const id = String(req.params.id || '').trim();
+  console.log(`[cars] GET /api/cars/:id called with id=`, id);
 
-    res.json({
-      ...car.toObject(),
+  // Basic validation for Mongo ObjectId
+  if (!mongoose.isValidObjectId(id)) {
+    console.warn(`[cars] Invalid ObjectId requested: ${id}`);
+    return res.status(400).json({ error: 'Invalid car id' });
+  }
+
+  try {
+    const car = await Car.findById(id).lean();
+    if (!car) {
+      console.warn(`[cars] Car not found for id=${id}`);
+      return res.status(404).json({ error: 'Car not found' });
+    }
+
+    return res.json({
+      ...car,
       id: car._id.toString(),
       _id: car._id.toString()
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch car' });
+    console.error(`[cars] Error fetching car id=${id}:`, err);
+    return res.status(500).json({ error: 'Failed to fetch car' });
   }
 });
 
