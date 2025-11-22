@@ -2,7 +2,10 @@ import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { BRANCHES, AuthContext } from '../constants';
 import type { Car } from '../types';
-import { MapPin, Gauge, Fuel, Users, CheckCircle2, Star, Shield, Info, Calendar, AlertCircle, Loader, X, AlertTriangle, Check } from 'lucide-react';
+import {
+  MapPin, Gauge, Fuel, Users, CheckCircle2, Star, Shield, Info, Calendar,
+  AlertCircle, Loader, X, AlertTriangle, Check
+} from 'lucide-react';
 
 const CarDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -10,9 +13,9 @@ const CarDetails: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user } = useContext(AuthContext);
 
-  // Build API base URL from environment (Vite)
-  const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ?? '';
-  const API_BASE = API_BASE_RAW.replace(/\/$/, '');
+  // Support either env var name, and remove trailing slash if present
+  const RAW_API = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? '';
+  const API_BASE = String(RAW_API || '').replace(/\/$/, '');
 
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,15 +35,28 @@ const CarDetails: React.FC = () => {
         return;
       }
 
-      const safeId = String(id).split(/[?#]/)[0];
-      const url = API_BASE ? `${API_BASE}/cars/${encodeURIComponent(safeId)}` : `/api/cars/${encodeURIComponent(safeId)}`;
+      // Strip accidental query/hash and whitespace
+      const safeId = String(id).split(/[?#]/)[0].trim();
+      if (!safeId) {
+        setError('Invalid car id');
+        setLoading(false);
+        return;
+      }
+
+      // Build correct URL (API_BASE may include full host or be empty to use same origin)
+      const url = API_BASE ? `${API_BASE}/api/cars/${encodeURIComponent(safeId)}` : `/api/cars/${encodeURIComponent(safeId)}`;
 
       try {
         setLoading(true);
+        // debug
+        console.debug('[CarDetails] fetching car from:', url);
+
         const response = await fetch(url, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         });
+
+        console.debug('[CarDetails] fetch status:', response.status);
 
         if (response.status === 404) {
           setError('Car not found');
@@ -110,8 +126,8 @@ const CarDetails: React.FC = () => {
 
     const isDaily = hours >= 24;
     const price = isDaily
-      ? (hours / 24) * car.pricePerDay
-      : hours * car.pricePerHour;
+      ? (hours / 24) * (car.pricePerDay ?? 0)
+      : hours * (car.pricePerHour ?? 0);
 
     const taxAmt = price * 0.18;
 
@@ -166,7 +182,8 @@ const CarDetails: React.FC = () => {
         totalPrice
       };
 
-      const url = API_BASE ? `${API_BASE}/bookings` : '/api/bookings';
+      const url = API_BASE ? `${API_BASE}/api/bookings` : '/api/bookings';
+      console.debug('[CarDetails] booking POST to', url, 'payload', payload);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -213,8 +230,8 @@ const CarDetails: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
       {/* Breadcrumbs */}
       <div className="text-sm text-gray-500 mb-6">
-        <span className="cursor-pointer hover:text-blue-600" onClick={() => navigate('/')}>Home</span> / 
-        <span className="cursor-pointer hover:text-blue-600" onClick={() => navigate(`/search?city=${branch?.cityId}`)}> Search</span> / 
+        <span className="cursor-pointer hover:text-blue-600" onClick={() => navigate('/')}>Home</span> /
+        <span className="cursor-pointer hover:text-blue-600" onClick={() => navigate(`/search?city=${branch?.cityId}`)}> Search</span> /
         <span className="text-gray-900 font-medium"> {car.make} {car.model}</span>
       </div>
 
@@ -234,48 +251,48 @@ const CarDetails: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-gray-100 rounded-2xl overflow-hidden h-[400px] relative group">
-             <img src={car.image} alt={car.model} className={`w-full h-full object-cover ${!isAvailable ? 'grayscale opacity-75' : ''}`} />
-             
-             {/* Status Badge */}
-             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-white text-xs font-bold uppercase tracking-wide shadow-sm ${getStatusColor(car.status)}`}>
-               {car.status}
-             </div>
+            <img src={car.image} alt={car.model} className={`w-full h-full object-cover ${!isAvailable ? 'grayscale opacity-75' : ''}`} />
 
-             <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
-                <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                <span className="font-bold text-gray-900">{car.rating}</span>
-                <span className="text-gray-500 text-sm">({car.trips} trips)</span>
-             </div>
+            {/* Status Badge */}
+            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-white text-xs font-bold uppercase tracking-wide shadow-sm ${getStatusColor(car.status)}`}>
+              {car.status}
+            </div>
+
+            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
+              <Star className="w-4 h-4 text-yellow-500 fill-current" />
+              <span className="font-bold text-gray-900">{car.rating}</span>
+              <span className="text-gray-500 text-sm">({car.trips} trips)</span>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Vehicle Specifications</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-               <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
-                 <Gauge className="w-6 h-6 text-blue-600 mb-2" />
-                 <span className="text-sm text-gray-500">Transmission</span>
-                 <span className="font-semibold text-gray-900">{car.transmission}</span>
-               </div>
-               <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
-                 <Fuel className="w-6 h-6 text-blue-600 mb-2" />
-                 <span className="text-sm text-gray-500">Fuel Type</span>
-                 <span className="font-semibold text-gray-900">{car.fuel}</span>
-               </div>
-               <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
-                 <Users className="w-6 h-6 text-blue-600 mb-2" />
-                 <span className="text-sm text-gray-500">Capacity</span>
-                 <span className="font-semibold text-gray-900">{car.seats} Seats</span>
-               </div>
-               <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
-                 <Shield className="w-6 h-6 text-blue-600 mb-2" />
-                 <span className="text-sm text-gray-500">Insurance</span>
-                 <span className="font-semibold text-gray-900">Comprehensive</span>
-               </div>
+              <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
+                <Gauge className="w-6 h-6 text-blue-600 mb-2" />
+                <span className="text-sm text-gray-500">Transmission</span>
+                <span className="font-semibold text-gray-900">{car.transmission}</span>
+              </div>
+              <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
+                <Fuel className="w-6 h-6 text-blue-600 mb-2" />
+                <span className="text-sm text-gray-500">Fuel Type</span>
+                <span className="font-semibold text-gray-900">{car.fuel}</span>
+              </div>
+              <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
+                <Users className="w-6 h-6 text-blue-600 mb-2" />
+                <span className="text-sm text-gray-500">Capacity</span>
+                <span className="font-semibold text-gray-900">{car.seats} Seats</span>
+              </div>
+              <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl">
+                <Shield className="w-6 h-6 text-blue-600 mb-2" />
+                <span className="text-sm text-gray-500">Insurance</span>
+                <span className="font-semibold text-gray-900">Comprehensive</span>
+              </div>
             </div>
 
             <h3 className="text-lg font-semibold text-gray-900 mt-8 mb-4">Key Features</h3>
             <div className="grid grid-cols-2 gap-3">
-              {car.features.map((feature, idx) => (
+              {(car.features || []).map((feature, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-gray-600">
                   <CheckCircle2 className="w-4 h-4 text-blue-500" />
                   <span>{feature}</span>
@@ -304,12 +321,12 @@ const CarDetails: React.FC = () => {
             <div className="space-y-4 mb-6">
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <div className="flex justify-between text-sm mb-2">
-                   <span className="text-gray-500">Rate per hour</span>
-                   <span className="font-medium">₹{car.pricePerHour}</span>
+                  <span className="text-gray-500">Rate per hour</span>
+                  <span className="font-medium">₹{car.pricePerHour}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                   <span className="text-gray-500">Rate per day</span>
-                   <span className="font-medium">₹{car.pricePerDay}</span>
+                  <span className="text-gray-500">Rate per day</span>
+                  <span className="font-medium">₹{car.pricePerDay}</span>
                 </div>
               </div>
 
@@ -318,8 +335,8 @@ const CarDetails: React.FC = () => {
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Pick Up</label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                    <input 
-                      type="datetime-local" 
+                    <input
+                      type="datetime-local"
                       value={startDate}
                       min={new Date().toISOString().slice(0, 16)}
                       onChange={(e) => setStartDate(e.target.value)}
@@ -331,8 +348,8 @@ const CarDetails: React.FC = () => {
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Drop Off</label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                    <input 
-                      type="datetime-local" 
+                    <input
+                      type="datetime-local"
                       value={endDate}
                       min={startDate}
                       onChange={(e) => setEndDate(e.target.value)}
@@ -340,11 +357,11 @@ const CarDetails: React.FC = () => {
                     />
                   </div>
                 </div>
-                
+
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                   <Info className="w-3 h-3" />
-                  {isValidDuration 
-                    ? `${durationHours.toFixed(1)} hours selected` 
+                  {isValidDuration
+                    ? `${durationHours.toFixed(1)} hours selected`
                     : 'Select valid dates'}
                 </p>
               </div>
@@ -367,22 +384,22 @@ const CarDetails: React.FC = () => {
 
             {error && (
               <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 mb-4">
-                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                 <span>{error}</span>
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
-            <button 
+            <button
               onClick={handleBookClick}
               disabled={!isAvailable}
               className={`w-full font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 
-                ${isAvailable 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100' 
+                ${isAvailable
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'}`}
             >
               {!isAvailable ? 'Unavailable' : user ? 'Proceed to Pay' : 'Log in to Book'}
             </button>
-            
+
             {!user && (
               <p className="text-center text-xs text-gray-400 mt-3">You won't be charged yet.</p>
             )}
@@ -400,13 +417,13 @@ const CarDetails: React.FC = () => {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div className="bg-gray-50 p-4 rounded-xl flex gap-4 items-center">
                 <img src={car.image} alt={car.model} className="w-16 h-16 object-cover rounded-lg" />
                 <div>
-                   <h4 className="font-bold text-gray-900">{car.make} {car.model}</h4>
-                   <p className="text-sm text-gray-500">{branch?.name}</p>
+                  <h4 className="font-bold text-gray-900">{car.make} {car.model}</h4>
+                  <p className="text-sm text-gray-500">{branch?.name}</p>
                 </div>
               </div>
 
@@ -435,13 +452,13 @@ const CarDetails: React.FC = () => {
               <div className="pt-2">
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors ${agreedToTerms ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-500'}`}>
-                     {agreedToTerms && <Check className="w-3.5 h-3.5 text-white" />}
+                    {agreedToTerms && <Check className="w-3.5 h-3.5 text-white" />}
                   </div>
-                  <input 
-                    type="checkbox" 
-                    className="hidden" 
+                  <input
+                    type="checkbox"
+                    className="hidden"
                     checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)} 
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
                   />
                   <span className="text-sm text-gray-600 select-none">
                     I agree to the <span className="text-blue-600 font-medium">Terms & Conditions</span> and <span className="text-blue-600 font-medium">Cancellation Policy</span>.
@@ -451,28 +468,28 @@ const CarDetails: React.FC = () => {
             </div>
 
             <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
-               <button 
-                 onClick={() => setShowConfirmModal(false)}
-                 className="flex-1 px-4 py-3 rounded-xl font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 transition-colors"
-               >
-                 Cancel
-               </button>
-               <button 
-                 onClick={handleFinalizeBooking}
-                 disabled={!agreedToTerms || isProcessing}
-                 className={`flex-1 px-4 py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all
-                   ${agreedToTerms && !isProcessing ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200' : 'bg-gray-300 cursor-not-allowed'}
-                 `}
-               >
-                 {isProcessing ? (
-                   <>
-                     <Loader className="w-5 h-5 animate-spin" />
-                     Processing...
-                   </>
-                 ) : (
-                   'Confirm & Pay'
-                 )}
-               </button>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalizeBooking}
+                disabled={!agreedToTerms || isProcessing}
+                className={`flex-1 px-4 py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all
+                  ${agreedToTerms && !isProcessing ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200' : 'bg-gray-300 cursor-not-allowed'}
+                `}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Confirm & Pay'
+                )}
+              </button>
             </div>
           </div>
         </div>
