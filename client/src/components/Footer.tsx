@@ -48,9 +48,9 @@ const Footer: React.FC = () => {
         <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-500 text-sm">© 2024 CrossCity Rentals. All rights reserved.</p>
           <div className="flex items-center gap-1 text-gray-500 text-sm mt-4 md:mt-0">
-            <span>Made with</span>
+            <span>Made with fun!</span>
             <Heart size={14} className="text-red-500 fill-current" />
-            <span>in Bengaluru</span>
+            
           </div>
         </div>
       </div>
