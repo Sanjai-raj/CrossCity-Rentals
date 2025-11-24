@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CITIES, BRANCHES } from '../constants';
-import { MapPin, ArrowRight, Tag, Zap, Shield, Search, Calendar, Clock } from 'lucide-react';
+import { MapPin, ArrowRight, Tag, Zap, Shield, Search,  Clock } from 'lucide-react';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
