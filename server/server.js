@@ -10,15 +10,16 @@ const seed = require('./seed');
 const User = require('./models/User');
 const Car = require('./models/Car');
 const Booking = require('./models/Booking');
+const verifyToken = require('./middleware/auth');
 
 const app = express();
 app.use(cors({
-    origin: [
-      "https://crosscity-rentals5.onrender.com",
-      "http://localhost:5173"
-    ],
-    credentials: true,
-  }));
+  origin: [
+    "https://crosscity-rentals5.onrender.com",
+    "http://localhost:5173"
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 
 // --- STRICT MONGO CONNECTION ---
@@ -178,7 +179,7 @@ app.get('/api/cars/:id', async (req, res) => {
 // -------------------------
 // BOOKING ROUTES
 // -------------------------
-app.post('/api/bookings', async (req, res) => {
+app.post('/api/bookings', verifyToken, async (req, res) => {
   try {
     const booking = await Booking.create(req.body);
     res.json(booking);
@@ -187,7 +188,7 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-app.get('/api/bookings/user/:userId', async (req, res) => {
+app.get('/api/bookings/user/:userId', verifyToken, async (req, res) => {
   try {
     const bookings = await Booking.find({ userId: req.params.userId }).populate('carId');
     res.json(bookings);
@@ -199,7 +200,7 @@ app.get('/api/bookings/user/:userId', async (req, res) => {
 // -------------------------
 // ADMIN STATS
 // -------------------------
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', verifyToken, async (req, res) => {
   try {
     const totalCars = await Car.countDocuments();
     const totalBookings = await Booking.countDocuments();
